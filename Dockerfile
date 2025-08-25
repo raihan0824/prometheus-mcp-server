@@ -41,7 +41,7 @@ CMD ["/app/.venv/bin/prometheus-mcp-server"]
 # GitHub Container Registry Metadata
 LABEL org.opencontainers.image.title="Prometheus MCP Server" \
   org.opencontainers.image.description="Model Context Protocol server for Prometheus integration" \
-  org.opencontainers.image.version="1.2.1" \
+  org.opencontainers.image.version="1.2.2" \
   org.opencontainers.image.authors="Pavel Shklovsky" \
   org.opencontainers.image.source="https://github.com/pab1it0/prometheus-mcp-server" \
   org.opencontainers.image.licenses="MIT" \

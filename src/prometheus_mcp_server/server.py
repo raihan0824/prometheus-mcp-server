@@ -19,6 +19,27 @@ mcp = FastMCP("Prometheus MCP")
 # Get logger instance
 logger = get_logger()
 
+def validate_limit_parameter(limit: Optional[Union[int, str]]) -> Optional[int]:
+    """Validate and convert limit parameter to integer if needed.
+    
+    Args:
+        limit: Optional limit parameter that can be int, str, or None
+        
+    Returns:
+        Optional[int]: Validated integer limit or None
+        
+    Raises:
+        ValueError: If string limit cannot be converted to valid integer
+    """
+    if limit is None:
+        return None
+    if isinstance(limit, str):
+        try:
+            return int(limit)
+        except ValueError:
+            raise ValueError(f"Invalid limit value '{limit}': must be a valid integer")
+    return limit
+
 class TransportType(str, Enum):
     """Supported MCP server transport types."""
 
@@ -196,16 +217,17 @@ async def execute_range_query(query: str, start: str, end: str, step: str) -> Di
     return result
 
 @mcp.tool(description="List all available metrics in Prometheus")
-async def list_metrics(limit: Optional[int] = None) -> List[str]:
+async def list_metrics(limit: Optional[Union[int, str]] = None) -> List[str]:
     """Retrieve a list of all metric names available in Prometheus.
     
     Args:
-        limit: Optional maximum number of metrics to return
+        limit: Optional maximum number of metrics to return (can be int or string)
     
     Returns:
         List of metric names as strings
     """
     params = {}
+    limit = validate_limit_parameter(limit)
     if limit is not None:
         params["limit"] = limit
     
@@ -215,17 +237,18 @@ async def list_metrics(limit: Optional[int] = None) -> List[str]:
     return data
 
 @mcp.tool(description="Get metadata for a specific metric")
-async def get_metric_metadata(metric: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+async def get_metric_metadata(metric: str, limit: Optional[Union[int, str]] = None) -> List[Dict[str, Any]]:
     """Get metadata about a specific metric.
     
     Args:
         metric: The name of the metric to retrieve metadata for
-        limit: Optional maximum number of metadata entries to return
+        limit: Optional maximum number of metadata entries to return (can be int or string)
         
     Returns:
         List of metadata entries for the metric
     """
     params = {"metric": metric}
+    limit = validate_limit_parameter(limit)
     if limit is not None:
         params["limit"] = limit
         
@@ -256,16 +279,17 @@ async def get_targets() -> Dict[str, List[Dict[str, Any]]]:
     return result
 
 @mcp.tool(description="List all available label names in Prometheus")
-async def list_labels(limit: Optional[int] = None) -> List[str]:
+async def list_labels(limit: Optional[Union[int, str]] = None) -> List[str]:
     """Retrieve a list of all label names available in Prometheus.
     
     Args:
-        limit: Optional maximum number of label names to return
+        limit: Optional maximum number of label names to return (can be int or string)
     
     Returns:
         List of label names as strings
     """
     params = {}
+    limit = validate_limit_parameter(limit)
     if limit is not None:
         params["limit"] = limit
     
@@ -275,17 +299,18 @@ async def list_labels(limit: Optional[int] = None) -> List[str]:
     return data
 
 @mcp.tool(description="Get all values for a specific label")
-async def get_label_values(label_name: str, limit: Optional[int] = None) -> List[str]:
+async def get_label_values(label_name: str, limit: Optional[Union[int, str]] = None) -> List[str]:
     """Get all possible values for a specific label.
     
     Args:
         label_name: The name of the label to retrieve values for
-        limit: Optional maximum number of label values to return
+        limit: Optional maximum number of label values to return (can be int or string)
         
     Returns:
         List of label values as strings
     """
     params = {}
+    limit = validate_limit_parameter(limit)
     if limit is not None:
         params["limit"] = limit
     
@@ -295,12 +320,12 @@ async def get_label_values(label_name: str, limit: Optional[int] = None) -> List
     return data
 
 @mcp.tool(description="Find time series by label matchers")
-async def find_series(match: List[str], limit: Optional[int] = None, start: Optional[str] = None, end: Optional[str] = None) -> List[Dict[str, str]]:
+async def find_series(match: List[str], limit: Optional[Union[int, str]] = None, start: Optional[str] = None, end: Optional[str] = None) -> List[Dict[str, str]]:
     """Find time series by label matchers.
     
     Args:
         match: List of series selector expressions (e.g., ['up', 'process_start_time_seconds{job="prometheus"}'])
-        limit: Optional maximum number of series to return
+        limit: Optional maximum number of series to return (can be int or string)
         start: Optional start time as RFC3339 or Unix timestamp
         end: Optional end time as RFC3339 or Unix timestamp
         
@@ -312,6 +337,7 @@ async def find_series(match: List[str], limit: Optional[int] = None, start: Opti
     if match:
         params['match[]'] = match
     
+    limit = validate_limit_parameter(limit)
     if limit is not None:
         params["limit"] = limit
     if start is not None:
