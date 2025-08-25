@@ -196,31 +196,42 @@ async def execute_range_query(query: str, start: str, end: str, step: str) -> Di
     return result
 
 @mcp.tool(description="List all available metrics in Prometheus")
-async def list_metrics() -> List[str]:
+async def list_metrics(limit: Optional[int] = None) -> List[str]:
     """Retrieve a list of all metric names available in Prometheus.
+    
+    Args:
+        limit: Optional maximum number of metrics to return
     
     Returns:
         List of metric names as strings
     """
-    logger.info("Listing available metrics")
-    data = make_prometheus_request("label/__name__/values")
-    logger.info("Metrics list retrieved", metric_count=len(data))
+    params = {}
+    if limit is not None:
+        params["limit"] = limit
+    
+    logger.info("Listing available metrics", limit=limit)
+    data = make_prometheus_request("label/__name__/values", params=params if params else None)
+    logger.info("Metrics list retrieved", metric_count=len(data), limit=limit)
     return data
 
 @mcp.tool(description="Get metadata for a specific metric")
-async def get_metric_metadata(metric: str) -> List[Dict[str, Any]]:
+async def get_metric_metadata(metric: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
     """Get metadata about a specific metric.
     
     Args:
         metric: The name of the metric to retrieve metadata for
+        limit: Optional maximum number of metadata entries to return
         
     Returns:
         List of metadata entries for the metric
     """
-    logger.info("Retrieving metric metadata", metric=metric)
     params = {"metric": metric}
+    if limit is not None:
+        params["limit"] = limit
+        
+    logger.info("Retrieving metric metadata", metric=metric, limit=limit)
     data = make_prometheus_request("metadata", params=params)
-    logger.info("Metric metadata retrieved", metric=metric, metadata_count=len(data["metadata"]))
+    logger.info("Metric metadata retrieved", metric=metric, metadata_count=len(data["metadata"]), limit=limit)
     return data["metadata"]
 
 @mcp.tool(description="Get information about all scrape targets")
@@ -243,6 +254,75 @@ async def get_targets() -> Dict[str, List[Dict[str, Any]]]:
                 dropped_targets=len(data["droppedTargets"]))
     
     return result
+
+@mcp.tool(description="List all available label names in Prometheus")
+async def list_labels(limit: Optional[int] = None) -> List[str]:
+    """Retrieve a list of all label names available in Prometheus.
+    
+    Args:
+        limit: Optional maximum number of label names to return
+    
+    Returns:
+        List of label names as strings
+    """
+    params = {}
+    if limit is not None:
+        params["limit"] = limit
+    
+    logger.info("Listing available labels", limit=limit)
+    data = make_prometheus_request("labels", params=params if params else None)
+    logger.info("Labels list retrieved", label_count=len(data), limit=limit)
+    return data
+
+@mcp.tool(description="Get all values for a specific label")
+async def get_label_values(label_name: str, limit: Optional[int] = None) -> List[str]:
+    """Get all possible values for a specific label.
+    
+    Args:
+        label_name: The name of the label to retrieve values for
+        limit: Optional maximum number of label values to return
+        
+    Returns:
+        List of label values as strings
+    """
+    params = {}
+    if limit is not None:
+        params["limit"] = limit
+    
+    logger.info("Retrieving label values", label_name=label_name, limit=limit)
+    data = make_prometheus_request(f"label/{label_name}/values", params=params if params else None)
+    logger.info("Label values retrieved", label_name=label_name, values_count=len(data), limit=limit)
+    return data
+
+@mcp.tool(description="Find time series by label matchers")
+async def find_series(match: List[str], limit: Optional[int] = None, start: Optional[str] = None, end: Optional[str] = None) -> List[Dict[str, str]]:
+    """Find time series by label matchers.
+    
+    Args:
+        match: List of series selector expressions (e.g., ['up', 'process_start_time_seconds{job="prometheus"}'])
+        limit: Optional maximum number of series to return
+        start: Optional start time as RFC3339 or Unix timestamp
+        end: Optional end time as RFC3339 or Unix timestamp
+        
+    Returns:
+        List of label sets representing the series
+    """
+    params = {}
+    # Add match parameters - requests library handles list values for 'match[]' automatically
+    if match:
+        params['match[]'] = match
+    
+    if limit is not None:
+        params["limit"] = limit
+    if start is not None:
+        params["start"] = start
+    if end is not None:
+        params["end"] = end
+    
+    logger.info("Finding series", match=match, limit=limit, start=start, end=end)
+    data = make_prometheus_request("series", params=params)
+    logger.info("Series found", series_count=len(data), limit=limit)
+    return data
 
 if __name__ == "__main__":
     logger.info("Starting Prometheus MCP Server", mode="direct")
