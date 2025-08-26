@@ -19,6 +19,7 @@ mcp = FastMCP("Prometheus MCP")
 # Get logger instance
 logger = get_logger()
 
+
 class TransportType(str, Enum):
     """Supported MCP server transport types."""
 
