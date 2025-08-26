@@ -19,6 +19,55 @@ mcp = FastMCP("Prometheus MCP")
 # Get logger instance
 logger = get_logger()
 
+# Health check tool for Docker containers and monitoring
+@mcp.tool(description="Health check endpoint for container monitoring and status verification")
+async def health_check() -> Dict[str, Any]:
+    """Return health status of the MCP server and Prometheus connection.
+    
+    Returns:
+        Health status including service information, configuration, and connectivity
+    """
+    try:
+        health_status = {
+            "status": "healthy",
+            "service": "prometheus-mcp-server", 
+            "version": "1.2.3",
+            "timestamp": datetime.utcnow().isoformat(),
+            "transport": config.mcp_server_config.mcp_server_transport if config.mcp_server_config else "stdio",
+            "configuration": {
+                "prometheus_url_configured": bool(config.url),
+                "authentication_configured": bool(config.username or config.token),
+                "org_id_configured": bool(config.org_id)
+            }
+        }
+        
+        # Test Prometheus connectivity if configured
+        if config.url:
+            try:
+                # Quick connectivity test
+                make_prometheus_request("query", params={"query": "up", "time": str(int(time.time()))})
+                health_status["prometheus_connectivity"] = "healthy"
+                health_status["prometheus_url"] = config.url
+            except Exception as e:
+                health_status["prometheus_connectivity"] = "unhealthy"
+                health_status["prometheus_error"] = str(e)
+                health_status["status"] = "degraded"
+        else:
+            health_status["status"] = "unhealthy"
+            health_status["error"] = "PROMETHEUS_URL not configured"
+        
+        logger.info("Health check completed", status=health_status["status"])
+        return health_status
+        
+    except Exception as e:
+        logger.error("Health check failed", error=str(e))
+        return {
+            "status": "unhealthy",
+            "service": "prometheus-mcp-server",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
 
 class TransportType(str, Enum):
     """Supported MCP server transport types."""

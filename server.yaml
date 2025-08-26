@@ -1,0 +1,88 @@
+name: prometheus-mcp-server
+image: mcp/prometheus-mcp-server
+type: server
+meta:
+  category: monitoring
+  tags:
+    - prometheus
+    - monitoring
+    - metrics
+    - observability
+    - time-series
+about:
+  title: Prometheus MCP Server
+  description: Model Context Protocol server for Prometheus integration, enabling AI assistants to query metrics, retrieve metadata, and monitor system health through standardized PromQL queries.
+  icon: https://prometheus.io/assets/prometheus_logo-cb55bb5c346.png
+source:
+  project: https://github.com/pab1it0/prometheus-mcp-server
+  branch: main
+  dockerfile: Dockerfile
+config:
+  description: Configure the Prometheus MCP server to connect to your Prometheus instance with optional authentication and multi-tenant support.
+  secrets:
+    - name: PROMETHEUS_USERNAME
+      env: PROMETHEUS_USERNAME
+      example: admin
+    - name: PROMETHEUS_PASSWORD
+      env: PROMETHEUS_PASSWORD
+      example: password123
+    - name: PROMETHEUS_TOKEN
+      env: PROMETHEUS_TOKEN
+      example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+  env:
+    - name: PROMETHEUS_URL
+      example: http://prometheus:9090
+      value: ""
+    - name: ORG_ID
+      example: tenant-1
+      value: ""
+    - name: PROMETHEUS_MCP_SERVER_TRANSPORT
+      example: http
+      value: stdio
+    - name: PROMETHEUS_MCP_BIND_HOST
+      example: 0.0.0.0
+      value: 127.0.0.1
+    - name: PROMETHEUS_MCP_BIND_PORT
+      example: 8080
+      value: 8080
+  parameters:
+    type: object
+    properties:
+      PROMETHEUS_URL:
+        type: string
+        description: Base URL of the Prometheus server (required)
+        example: http://prometheus:9090
+      PROMETHEUS_USERNAME:
+        type: string
+        description: Username for basic authentication (optional)
+        example: admin
+      PROMETHEUS_PASSWORD:
+        type: string
+        description: Password for basic authentication (optional, requires username)
+        example: password123
+      PROMETHEUS_TOKEN:
+        type: string
+        description: Bearer token for authentication (optional, takes precedence over basic auth)
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      ORG_ID:
+        type: string
+        description: Organization ID for multi-tenant Prometheus setups (optional)
+        example: tenant-1
+      PROMETHEUS_MCP_SERVER_TRANSPORT:
+        type: string
+        description: MCP transport protocol (stdio, http, sse)
+        enum: [stdio, http, sse]
+        default: stdio
+      PROMETHEUS_MCP_BIND_HOST:
+        type: string
+        description: Host to bind the MCP server (for HTTP/SSE transports)
+        default: 127.0.0.1
+        example: 0.0.0.0
+      PROMETHEUS_MCP_BIND_PORT:
+        type: integer
+        description: Port to bind the MCP server (for HTTP/SSE transports)
+        default: 8080
+        minimum: 1024
+        maximum: 65535
+    required:
+      - PROMETHEUS_URL
