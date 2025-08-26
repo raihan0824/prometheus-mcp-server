@@ -4,7 +4,7 @@ import pytest
 import json
 from unittest.mock import patch, MagicMock
 from fastmcp import Client
-from prometheus_mcp_server.server import mcp, execute_query, execute_range_query, list_metrics, get_metric_metadata, get_targets, list_labels, get_label_values, find_series
+from prometheus_mcp_server.server import mcp, execute_query, execute_range_query, list_metrics, get_metric_metadata, get_targets
 
 @pytest.fixture
 def mock_make_request():
@@ -94,7 +94,7 @@ async def test_list_metrics(mock_make_request):
         result = await client.call_tool("list_metrics", {})
 
         # Verify
-        mock_make_request.assert_called_once_with("label/__name__/values", params=None)
+        mock_make_request.assert_called_once_with("label/__name__/values")
         assert result.data == ["up", "go_goroutines", "http_requests_total"]
 
 @pytest.mark.asyncio
@@ -141,158 +141,3 @@ async def test_get_targets(mock_make_request):
         assert len(json_data["activeTargets"]) == 1
         assert json_data["activeTargets"][0]["health"] == "up"
         assert len(json_data["droppedTargets"]) == 0
-
-# Pagination Tests
-
-@pytest.mark.asyncio
-async def test_list_metrics_with_limit(mock_make_request):
-    """Test the list_metrics tool with pagination limit."""
-    # Setup
-    mock_make_request.return_value = ["up", "go_goroutines"]
-    
-    async with Client(mcp) as client:
-        # Execute
-        result = await client.call_tool("list_metrics", {"limit": 2})
-        
-        # Verify
-        mock_make_request.assert_called_once_with("label/__name__/values", params={"limit": 2})
-        assert result.data == ["up", "go_goroutines"]
-
-@pytest.mark.asyncio
-async def test_list_metrics_without_limit(mock_make_request):
-    """Test the list_metrics tool maintains backward compatibility."""
-    # Setup
-    mock_make_request.return_value = ["up", "go_goroutines", "http_requests_total"]
-    
-    async with Client(mcp) as client:
-        # Execute
-        result = await client.call_tool("list_metrics", {})
-        
-        # Verify
-        mock_make_request.assert_called_once_with("label/__name__/values", params=None)
-        assert result.data == ["up", "go_goroutines", "http_requests_total"]
-
-@pytest.mark.asyncio
-async def test_get_metric_metadata_with_limit(mock_make_request):
-    """Test the get_metric_metadata tool with pagination limit."""
-    # Setup
-    mock_make_request.return_value = {"metadata": [
-        {"metric": "up", "type": "gauge", "help": "Up indicates if the scrape was successful", "unit": ""}
-    ]}
-
-    async with Client(mcp) as client:
-        # Execute
-        result = await client.call_tool("get_metric_metadata", {"metric": "up", "limit": 1})
-
-        payload = result.content[0].text
-        json_data = json.loads(payload)
-
-        # Verify
-        mock_make_request.assert_called_once_with("metadata", params={"metric": "up", "limit": 1})
-        assert len(json_data) == 1
-        assert json_data[0]["metric"] == "up"
-
-@pytest.mark.asyncio
-async def test_list_labels(mock_make_request):
-    """Test the new list_labels tool."""
-    # Setup
-    mock_make_request.return_value = ["__name__", "job", "instance"]
-
-    async with Client(mcp) as client:
-        # Execute
-        result = await client.call_tool("list_labels", {})
-
-        # Verify
-        mock_make_request.assert_called_once_with("labels", params=None)
-        assert result.data == ["__name__", "job", "instance"]
-
-@pytest.mark.asyncio
-async def test_list_labels_with_limit(mock_make_request):
-    """Test the list_labels tool with pagination limit."""
-    # Setup
-    mock_make_request.return_value = ["__name__", "job"]
-
-    async with Client(mcp) as client:
-        # Execute
-        result = await client.call_tool("list_labels", {"limit": 2})
-
-        # Verify
-        mock_make_request.assert_called_once_with("labels", params={"limit": 2})
-        assert result.data == ["__name__", "job"]
-
-@pytest.mark.asyncio
-async def test_get_label_values(mock_make_request):
-    """Test the new get_label_values tool."""
-    # Setup
-    mock_make_request.return_value = ["prometheus", "node-exporter"]
-
-    async with Client(mcp) as client:
-        # Execute
-        result = await client.call_tool("get_label_values", {"label_name": "job"})
-
-        # Verify
-        mock_make_request.assert_called_once_with("label/job/values", params=None)
-        assert result.data == ["prometheus", "node-exporter"]
-
-@pytest.mark.asyncio
-async def test_get_label_values_with_limit(mock_make_request):
-    """Test the get_label_values tool with pagination limit."""
-    # Setup
-    mock_make_request.return_value = ["prometheus"]
-
-    async with Client(mcp) as client:
-        # Execute
-        result = await client.call_tool("get_label_values", {"label_name": "job", "limit": 1})
-
-        # Verify
-        mock_make_request.assert_called_once_with("label/job/values", params={"limit": 1})
-        assert result.data == ["prometheus"]
-
-@pytest.mark.asyncio
-async def test_find_series(mock_make_request):
-    """Test the new find_series tool."""
-    # Setup
-    mock_make_request.return_value = [
-        {"__name__": "up", "job": "prometheus", "instance": "localhost:9090"}
-    ]
-
-    async with Client(mcp) as client:
-        # Execute
-        result = await client.call_tool("find_series", {"match": ["up"]})
-
-        payload = result.content[0].text
-        json_data = json.loads(payload)
-
-        # Verify
-        mock_make_request.assert_called_once_with("series", params={"match[]": ["up"]})
-        assert len(json_data) == 1
-        assert json_data[0]["__name__"] == "up"
-
-@pytest.mark.asyncio
-async def test_find_series_with_limit_and_time_range(mock_make_request):
-    """Test the find_series tool with all optional parameters."""
-    # Setup
-    mock_make_request.return_value = [
-        {"__name__": "up", "job": "prometheus", "instance": "localhost:9090"}
-    ]
-
-    async with Client(mcp) as client:
-        # Execute
-        result = await client.call_tool("find_series", {
-            "match": ["up", "process_start_time_seconds"],
-            "limit": 1,
-            "start": "2023-01-01T00:00:00Z",
-            "end": "2023-01-01T01:00:00Z"
-        })
-
-        payload = result.content[0].text
-        json_data = json.loads(payload)
-
-        # Verify
-        mock_make_request.assert_called_once_with("series", params={
-            "match[]": ["up", "process_start_time_seconds"],
-            "limit": 1,
-            "start": "2023-01-01T00:00:00Z",
-            "end": "2023-01-01T01:00:00Z"
-        })
-        assert len(json_data) == 1
