@@ -42,17 +42,9 @@ Use the execute_range_query tool to show me the CPU usage over the last hour wit
 
 Retrieves a list of all available metric names.
 
-**Parameters:**
-- `limit`: Optional maximum number of metrics to return
-
 **Example Claude prompt:**
 ```
 Use the list_metrics tool to show me all available metrics in my Prometheus server.
-```
-
-**Example with pagination:**
-```
-Use the list_metrics tool to show me the first 10 metrics available in my server.
 ```
 
 #### `get_metric_metadata`
@@ -61,7 +53,6 @@ Retrieves metadata about a specific metric.
 
 **Parameters:**
 - `metric`: The name of the metric (required)
-- `limit`: Optional maximum number of metadata entries to return
 
 **Example Claude prompt:**
 ```
@@ -75,46 +66,6 @@ Retrieves information about all Prometheus scrape targets.
 **Example Claude prompt:**
 ```
 Use the get_targets tool to check the health of all monitoring targets.
-```
-
-#### `list_labels`
-
-Retrieves a list of all available label names.
-
-**Parameters:**
-- `limit`: Optional maximum number of label names to return
-
-**Example Claude prompt:**
-```
-Use the list_labels tool to show me all label names available in my metrics.
-```
-
-#### `get_label_values`
-
-Retrieves all possible values for a specific label.
-
-**Parameters:**
-- `label_name`: The name of the label (required)  
-- `limit`: Optional maximum number of label values to return
-
-**Example Claude prompt:**
-```
-Use the get_label_values tool to show me all possible values for the 'job' label.
-```
-
-#### `find_series`
-
-Finds time series matching specified label selectors.
-
-**Parameters:**
-- `match`: Array of series selector expressions (required)
-- `limit`: Optional maximum number of series to return
-- `start`: Optional start time for the search
-- `end`: Optional end time for the search
-
-**Example Claude prompt:**
-```
-Use the find_series tool to find all time series for the 'up' metric with job='prometheus'.
 ```
 
 ## Example Workflows
@@ -151,18 +102,6 @@ Claude might use:
 3. `get_metric_metadata` to understand what each metric represents
 4. `execute_query` to fetch current values
 
-### Large-Scale Metric Discovery
-
-```
-I have thousands of metrics. Can you help me explore them systematically? Start by showing me the first 20 metrics, then help me find patterns in the label names.
-```
-
-Claude might use:
-1. `list_metrics` with `limit: 20` to get a manageable sample
-2. `list_labels` to see what label dimensions are available
-3. `get_label_values` for key labels like `job` to understand the system structure
-4. `find_series` with limits to explore specific metric patterns
-
 ## Tips for Effective Use
 
 1. **Be specific about time ranges** when asking for historical data
@@ -170,25 +109,6 @@ Claude might use:
 3. **Use metric discovery tools** if you're unsure what metrics are available
 4. **Start with simple queries** and gradually build more complex ones
 5. **Ask for explanations** if you don't understand the returned data
-6. **Use pagination for large datasets** - when exploring thousands of metrics or labels, use `limit` parameters to avoid overwhelming responses
-7. **Combine discovery tools** - use `list_labels`, `get_label_values`, and `find_series` together to understand your metric structure
-
-## Pagination Best Practices
-
-When working with large Prometheus deployments:
-
-- **Start small**: Use `list_metrics` with `limit: 10-50` to get an initial sample
-- **Explore systematically**: Use `list_labels` to understand available dimensions before diving deep
-- **Use series search**: `find_series` with specific matchers and limits to find relevant metrics
-- **Be specific**: When you know what you're looking for, use label matchers to filter results at the source
-
-**Example progressive exploration:**
-```
-1. "Show me the first 20 metrics" → list_metrics(limit=20)
-2. "What label names are available?" → list_labels()
-3. "What jobs do I have?" → get_label_values(label_name="job")
-4. "Find up to 10 series for the nginx job" → find_series(match=["up{job=\"nginx\"}"], limit=10)
-```
 
 ## PromQL Query Examples
 

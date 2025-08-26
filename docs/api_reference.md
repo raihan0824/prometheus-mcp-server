@@ -74,22 +74,12 @@ List all available metrics in Prometheus.
 
 **Description**: Retrieves a list of all metric names available in the Prometheus server.
 
-**Parameters**:
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `limit` | integer | No | Maximum number of metrics to return (0 = unlimited) |
+**Parameters**: None
 
 **Returns**: Array of metric names.
 
 ```json
 ["up", "go_goroutines", "http_requests_total", ...]
-```
-
-**Example with pagination**:
-```json
-// Call with {"limit": 2}
-["up", "go_goroutines"]
 ```
 
 #### `get_metric_metadata`
@@ -103,7 +93,6 @@ Get metadata for a specific metric.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `metric` | string | Yes | The name of the metric |
-| `limit` | integer | No | Maximum number of metadata entries to return |
 
 **Returns**: Array of metadata objects.
 
@@ -154,96 +143,6 @@ Get information about all scrape targets.
 }
 ```
 
-#### `list_labels`
-
-List all available label names in Prometheus.
-
-**Description**: Retrieves a list of all label names available across all metrics in the Prometheus server.
-
-**Parameters**:
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `limit` | integer | No | Maximum number of label names to return |
-
-**Returns**: Array of label names.
-
-```json
-["__name__", "job", "instance", "handler", "method"]
-```
-
-#### `get_label_values`
-
-Get all values for a specific label.
-
-**Description**: Retrieves all possible values for a given label name.
-
-**Parameters**:
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `label_name` | string | Yes | The name of the label |
-| `limit` | integer | No | Maximum number of label values to return |
-
-**Returns**: Array of label values.
-
-```json
-["prometheus", "node-exporter", "alertmanager"]
-```
-
-#### `find_series`
-
-Find time series by label matchers.
-
-**Description**: Returns a list of time series that match the specified label selectors.
-
-**Parameters**:
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `match` | array | Yes | Array of series selector expressions |
-| `limit` | integer | No | Maximum number of series to return |
-| `start` | string | No | Start time for series search (RFC3339 or Unix timestamp) |
-| `end` | string | No | End time for series search (RFC3339 or Unix timestamp) |
-
-**Returns**: Array of label sets representing the series.
-
-```json
-[
-  {
-    "__name__": "up",
-    "job": "prometheus",
-    "instance": "localhost:9090"
-  },
-  {
-    "__name__": "up", 
-    "job": "node-exporter",
-    "instance": "localhost:9100"
-  }
-]
-```
-
-**Example with multiple matchers**:
-```json
-// Call with {"match": ["up", "process_start_time_seconds{job=\"prometheus\"}"], "limit": 5}
-```
-
-## Pagination Support
-
-Several MCP tools now support pagination through the optional `limit` parameter:
-
-- **`list_metrics`**: Limit the number of metric names returned
-- **`get_metric_metadata`**: Limit the number of metadata entries returned  
-- **`list_labels`**: Limit the number of label names returned
-- **`get_label_values`**: Limit the number of label values returned
-- **`find_series`**: Limit the number of time series returned
-
-**Key points about pagination**:
-- All pagination parameters are optional - omit them for unlimited results
-- `limit=0` disables the limit (returns all results)
-- The Prometheus API doesn't support `offset`-based pagination
-- Results are returned in the order provided by Prometheus (typically alphabetical for labels/metrics)
-
 ## Prometheus API Endpoints
 
 The MCP server interacts with the following Prometheus API endpoints:
@@ -267,18 +166,6 @@ Used by `get_metric_metadata` to retrieve metadata about metrics.
 ### `/api/v1/targets`
 
 Used by `get_targets` to retrieve information about scrape targets.
-
-### `/api/v1/labels`
-
-Used by `list_labels` to retrieve all label names.
-
-### `/api/v1/label/<label_name>/values`
-
-Used by `get_label_values` to retrieve values for a specific label.
-
-### `/api/v1/series`
-
-Used by `find_series` to find time series matching label selectors.
 
 ## Error Handling
 
