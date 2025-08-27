@@ -7,7 +7,8 @@ from unittest.mock import patch, MagicMock, AsyncMock
 from datetime import datetime
 from prometheus_mcp_server import server
 from prometheus_mcp_server.server import (
-    make_prometheus_request, get_prometheus_auth, config, TransportType
+    make_prometheus_request, get_prometheus_auth, config, TransportType,
+    execute_query, execute_range_query, list_metrics, get_metric_metadata, get_targets, health_check
 )
 
 # Test the MCP tools by testing them through async wrappers
@@ -33,7 +34,7 @@ async def get_metric_metadata_wrapper(metric: str):
     """Wrapper to test get_metric_metadata functionality."""
     params = {"metric": metric}
     data = make_prometheus_request("metadata", params=params)
-    return data["metadata"]
+    return data["metadata"][metric]
 
 async def get_targets_wrapper():
     """Wrapper to test get_targets functionality."""
@@ -443,8 +444,9 @@ class TestMCPProtocolVersioning:
         ]
         
         for tool in tools:
-            # Each tool should have a docstring
-            assert tool.__doc__ is not None and tool.__doc__.strip() != ""
+            # Each tool should have a description (FastMCP tools have description attribute)
+            assert hasattr(tool, 'description')
+            assert tool.description is not None and tool.description.strip() != ""
     
     def test_server_capabilities(self):
         """Test server declares proper MCP capabilities."""
@@ -480,7 +482,15 @@ class TestMCPConcurrencyAndPerformance:
     @pytest.mark.asyncio
     async def test_concurrent_tool_execution(self, mock_request, mock_prometheus_response):
         """Test tools can handle concurrent execution."""
-        mock_request.return_value = mock_prometheus_response["data"]
+        def mock_side_effect(endpoint, params=None):
+            if endpoint == "targets":
+                return {"activeTargets": [], "droppedTargets": []}
+            elif endpoint == "label/__name__/values":
+                return ["up", "prometheus_build_info"]
+            else:
+                return mock_prometheus_response["data"]
+        
+        mock_request.side_effect = mock_side_effect
         
         # Create multiple concurrent tasks
         tasks = [
@@ -503,8 +513,9 @@ class TestMCPConcurrencyAndPerformance:
     async def test_tool_timeout_handling(self, mock_request):
         """Test tools handle timeouts gracefully."""
         # Simulate slow response
-        async def slow_response(*args, **kwargs):
-            await asyncio.sleep(0.1)
+        def slow_response(*args, **kwargs):
+            import time
+            time.sleep(0.1)
             return {"resultType": "vector", "result": []}
         
         mock_request.side_effect = slow_response
