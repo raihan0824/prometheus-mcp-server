@@ -115,8 +115,7 @@ class TestDockerContainerStdio:
         container = docker_client.containers.run(
             docker_image,
             environment={},
-            detach=True,
-            remove=True
+            detach=True
         )
         
         try:
@@ -148,7 +147,6 @@ class TestDockerContainerStdio:
                 'PROMETHEUS_MCP_SERVER_TRANSPORT': 'stdio'
             },
             detach=True,
-            remove=True
         )
         
         try:
@@ -186,7 +184,6 @@ class TestDockerContainerHTTP:
             },
             ports={'8080/tcp': 8080},
             detach=True,
-            remove=True
         )
         
         try:
@@ -225,7 +222,6 @@ class TestDockerContainerHTTP:
                 'PROMETHEUS_MCP_SERVER_TRANSPORT': 'stdio'
             },
             detach=True,
-            remove=True
         )
         
         try:
@@ -267,7 +263,6 @@ class TestDockerEnvironmentVariables:
             docker_image,
             environment=env_vars,
             detach=True,
-            remove=True
         )
         
         try:
@@ -299,7 +294,6 @@ class TestDockerEnvironmentVariables:
                 'PROMETHEUS_MCP_SERVER_TRANSPORT': 'invalid-transport'
             },
             detach=True,
-            remove=True
         )
         
         try:
@@ -331,7 +325,6 @@ class TestDockerEnvironmentVariables:
                 'PROMETHEUS_MCP_BIND_PORT': 'invalid-port'
             },
             detach=True,
-            remove=True
         )
         
         try:
@@ -365,7 +358,6 @@ class TestDockerSecurity:
                 'PROMETHEUS_URL': 'http://test-prometheus:9090'
             },
             detach=True,
-            remove=True
         )
         
         try:
@@ -395,7 +387,6 @@ class TestDockerSecurity:
                 'PROMETHEUS_URL': 'http://test-prometheus:9090'
             },
             detach=True,
-            remove=True
         )
         
         try:
