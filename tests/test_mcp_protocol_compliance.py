@@ -7,7 +7,8 @@ from unittest.mock import patch, MagicMock, AsyncMock
 from datetime import datetime
 from prometheus_mcp_server import server
 from prometheus_mcp_server.server import (
-    make_prometheus_request, get_prometheus_auth, config, TransportType
+    make_prometheus_request, get_prometheus_auth, config, TransportType,
+    execute_query, execute_range_query, list_metrics, get_metric_metadata, get_targets, health_check
 )
 
 # Test the MCP tools by testing them through async wrappers
@@ -33,7 +34,7 @@ async def get_metric_metadata_wrapper(metric: str):
     """Wrapper to test get_metric_metadata functionality."""
     params = {"metric": metric}
     data = make_prometheus_request("metadata", params=params)
-    return data["metadata"]
+    return data["metadata"][metric]
 
 async def get_targets_wrapper():
     """Wrapper to test get_targets functionality."""
@@ -150,7 +151,7 @@ def mock_targets_response():
 class TestMCPToolCompliance:
     """Test MCP tool interface compliance."""
     
-    @patch('prometheus_mcp_server.server.make_prometheus_request')
+    @patch('test_mcp_protocol_compliance.make_prometheus_request')
     @pytest.mark.asyncio  
     async def test_execute_query_tool_signature(self, mock_request, mock_prometheus_response):
         """Test execute_query tool has correct MCP signature."""
@@ -174,7 +175,7 @@ class TestMCPToolCompliance:
         finally:
             config.url = original_url
     
-    @patch('prometheus_mcp_server.server.make_prometheus_request')
+    @patch('test_mcp_protocol_compliance.make_prometheus_request')
     @pytest.mark.asyncio
     async def test_execute_range_query_tool_signature(self, mock_request, mock_prometheus_response):
         """Test execute_range_query tool has correct MCP signature."""
@@ -191,7 +192,7 @@ class TestMCPToolCompliance:
         assert "resultType" in result
         assert "result" in result
     
-    @patch('prometheus_mcp_server.server.make_prometheus_request')
+    @patch('test_mcp_protocol_compliance.make_prometheus_request')
     @pytest.mark.asyncio
     async def test_list_metrics_tool_signature(self, mock_request, mock_metrics_response):
         """Test list_metrics tool has correct MCP signature."""
@@ -201,7 +202,7 @@ class TestMCPToolCompliance:
         assert isinstance(result, list)
         assert all(isinstance(metric, str) for metric in result)
     
-    @patch('prometheus_mcp_server.server.make_prometheus_request')
+    @patch('test_mcp_protocol_compliance.make_prometheus_request')
     @pytest.mark.asyncio
     async def test_get_metric_metadata_tool_signature(self, mock_request, mock_metadata_response):
         """Test get_metric_metadata tool has correct MCP signature."""
@@ -211,7 +212,7 @@ class TestMCPToolCompliance:
         assert isinstance(result, list)
         assert all(isinstance(metadata, dict) for metadata in result)
     
-    @patch('prometheus_mcp_server.server.make_prometheus_request')
+    @patch('test_mcp_protocol_compliance.make_prometheus_request')
     @pytest.mark.asyncio
     async def test_get_targets_tool_signature(self, mock_request, mock_targets_response):
         """Test get_targets tool has correct MCP signature."""
@@ -224,7 +225,7 @@ class TestMCPToolCompliance:
         assert isinstance(result["activeTargets"], list)
         assert isinstance(result["droppedTargets"], list)
     
-    @patch('prometheus_mcp_server.server.make_prometheus_request')
+    @patch('test_mcp_protocol_compliance.make_prometheus_request')
     @pytest.mark.asyncio
     async def test_health_check_tool_signature(self, mock_request):
         """Test health_check tool has correct MCP signature."""
@@ -242,7 +243,7 @@ class TestMCPToolCompliance:
 class TestMCPToolErrorHandling:
     """Test MCP tool error handling compliance."""
     
-    @patch('prometheus_mcp_server.server.make_prometheus_request')
+    @patch('test_mcp_protocol_compliance.make_prometheus_request')
     @pytest.mark.asyncio
     async def test_execute_query_handles_prometheus_errors(self, mock_request):
         """Test execute_query handles Prometheus API errors gracefully."""
@@ -251,7 +252,7 @@ class TestMCPToolErrorHandling:
         with pytest.raises(ValueError):
             await execute_query_wrapper("invalid_query{")
     
-    @patch('prometheus_mcp_server.server.make_prometheus_request')
+    @patch('test_mcp_protocol_compliance.make_prometheus_request')
     @pytest.mark.asyncio
     async def test_execute_range_query_handles_network_errors(self, mock_request):
         """Test execute_range_query handles network errors gracefully."""
@@ -261,7 +262,7 @@ class TestMCPToolErrorHandling:
         with pytest.raises(requests.exceptions.ConnectionError):
             await execute_range_query_wrapper("up", "now-1h", "now", "1m")
     
-    @patch('prometheus_mcp_server.server.make_prometheus_request')
+    @patch('test_mcp_protocol_compliance.make_prometheus_request')
     @pytest.mark.asyncio
     async def test_health_check_handles_configuration_errors(self, mock_request):
         """Test health_check handles configuration errors gracefully."""
@@ -276,7 +277,7 @@ class TestMCPToolErrorHandling:
         finally:
             config.url = original_url
     
-    @patch('prometheus_mcp_server.server.make_prometheus_request')
+    @patch('test_mcp_protocol_compliance.make_prometheus_request')
     @pytest.mark.asyncio
     async def test_health_check_handles_connectivity_errors(self, mock_request):
         """Test health_check handles Prometheus connectivity errors."""
@@ -290,7 +291,7 @@ class TestMCPToolErrorHandling:
 class TestMCPDataFormats:
     """Test MCP tool data format compliance."""
     
-    @patch('prometheus_mcp_server.server.make_prometheus_request')
+    @patch('test_mcp_protocol_compliance.make_prometheus_request')
     @pytest.mark.asyncio
     async def test_execute_query_returns_valid_json(self, mock_request, mock_prometheus_response):
         """Test execute_query returns JSON-serializable data."""
@@ -307,7 +308,7 @@ class TestMCPDataFormats:
         assert "resultType" in parsed
         assert "result" in parsed
     
-    @patch('prometheus_mcp_server.server.make_prometheus_request')
+    @patch('test_mcp_protocol_compliance.make_prometheus_request')
     @pytest.mark.asyncio
     async def test_all_tools_return_json_serializable_data(self, mock_request):
         """Test all MCP tools return JSON-serializable data."""
@@ -428,7 +429,7 @@ class TestMCPProtocolVersioning:
         # FastMCP should have a name
         assert hasattr(mcp, 'name') or hasattr(mcp, '_name')
     
-    @patch('prometheus_mcp_server.server.make_prometheus_request')
+    @patch('test_mcp_protocol_compliance.make_prometheus_request')
     @pytest.mark.asyncio
     async def test_tool_descriptions_are_present(self, mock_request):
         """Test that all MCP tools have proper descriptions."""
@@ -443,8 +444,9 @@ class TestMCPProtocolVersioning:
         ]
         
         for tool in tools:
-            # Each tool should have a docstring
-            assert tool.__doc__ is not None and tool.__doc__.strip() != ""
+            # Each tool should have a description (FastMCP tools have description attribute)
+            assert hasattr(tool, 'description')
+            assert tool.description is not None and tool.description.strip() != ""
     
     def test_server_capabilities(self):
         """Test server declares proper MCP capabilities."""
@@ -476,11 +478,19 @@ class TestMCPProtocolVersioning:
 class TestMCPConcurrencyAndPerformance:
     """Test MCP tools handle concurrency and perform well."""
     
-    @patch('prometheus_mcp_server.server.make_prometheus_request')
+    @patch('test_mcp_protocol_compliance.make_prometheus_request')
     @pytest.mark.asyncio
     async def test_concurrent_tool_execution(self, mock_request, mock_prometheus_response):
         """Test tools can handle concurrent execution."""
-        mock_request.return_value = mock_prometheus_response["data"]
+        def mock_side_effect(endpoint, params=None):
+            if endpoint == "targets":
+                return {"activeTargets": [], "droppedTargets": []}
+            elif endpoint == "label/__name__/values":
+                return ["up", "prometheus_build_info"]
+            else:
+                return mock_prometheus_response["data"]
+        
+        mock_request.side_effect = mock_side_effect
         
         # Create multiple concurrent tasks
         tasks = [
@@ -498,13 +508,14 @@ class TestMCPConcurrencyAndPerformance:
         for result in results:
             assert result is not None
     
-    @patch('prometheus_mcp_server.server.make_prometheus_request')
+    @patch('test_mcp_protocol_compliance.make_prometheus_request')
     @pytest.mark.asyncio
     async def test_tool_timeout_handling(self, mock_request):
         """Test tools handle timeouts gracefully."""
         # Simulate slow response
-        async def slow_response(*args, **kwargs):
-            await asyncio.sleep(0.1)
+        def slow_response(*args, **kwargs):
+            import time
+            time.sleep(0.1)
             return {"resultType": "vector", "result": []}
         
         mock_request.side_effect = slow_response
