@@ -10,6 +10,23 @@ This provides access to your Prometheus metrics and queries through standardized
 
 [mcp]: https://modelcontextprotocol.io
 
+## Quick Start
+
+### 🚀 **For End Users (PyPI)**
+```bash
+# Install and run in one command
+uvx --from raihan0824-prometheus-mcp-server prometheus-mcp-server
+```
+
+### 🛠️ **For Developers (Local)**
+```bash
+# Clone and install in development mode
+git clone https://github.com/raihan0824/prometheus-mcp-server.git
+cd prometheus-mcp-server
+uv pip install -e .
+prometheus-mcp-server
+```
+
 ## Features
 
 - [x] Execute PromQL queries against Prometheus
@@ -28,7 +45,65 @@ This provides access to your Prometheus metrics and queries through standardized
 The list of tools is configurable, so you can choose which tools you want to make available to the MCP client.
 This is useful if you don't use certain functionality or if you don't want to take up too much of the context window.
 
+## Installation
+
+### Option 1: Install from PyPI (Recommended for Users)
+
+```bash
+# Using uvx (recommended for Claude Desktop)
+uvx --from raihan0824-prometheus-mcp-server prometheus-mcp-server
+
+# Using pip
+pip install raihan0824-prometheus-mcp-server
+
+# Using uv
+uv add raihan0824-prometheus-mcp-server
+```
+
+### Option 2: Install from Source (For Development)
+
+```bash
+# Clone the repository
+git clone https://github.com/raihan0824/prometheus-mcp-server.git
+cd prometheus-mcp-server
+
+# Install with uv (development mode)
+uv pip install -e .
+
+# Or install with pip (development mode)
+pip install -e .
+```
+
 ## Usage
+
+### For End Users (Using PyPI Package)
+
+If you want to use the pre-built package from PyPI:
+
+```bash
+# Install and run in one command
+uvx --from raihan0824-prometheus-mcp-server prometheus-mcp-server
+
+# Or install permanently
+pip install raihan0824-prometheus-mcp-server
+prometheus-mcp-server
+```
+
+### For Developers (Local Development)
+
+If you want to modify the code or contribute:
+
+```bash
+# Clone and install in development mode
+git clone https://github.com/raihan0824/prometheus-mcp-server.git
+cd prometheus-mcp-server
+uv pip install -e .
+
+# Run the development version
+prometheus-mcp-server
+```
+
+---
 
 1. Ensure your Prometheus server is accessible from the environment where you'll run this MCP server.
 
@@ -61,6 +136,76 @@ ORG_ID=your_organization_id
 
 3. Add the server configuration to your client configuration file. For example, for Claude Desktop:
 
+### Option A: Using uvx with PyPI package (Recommended for Users)
+
+```json
+{
+  "mcpServers": {
+    "prometheus": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "raihan0824-prometheus-mcp-server",
+        "prometheus-mcp-server"
+      ],
+      "env": {
+        "PROMETHEUS_URL": "<your-prometheus-url>",
+        "PROMETHEUS_USERNAME": "<your-username>",
+        "PROMETHEUS_PASSWORD": "<your-password>"
+      }
+    }
+  }
+}
+```
+
+### Option B: Using uvx with local repository
+
+```json
+{
+  "mcpServers": {
+    "prometheus": {
+      "command": "uvx",
+      "args": [
+        "--directory",
+        "/path/to/prometheus-mcp-server",
+        "run",
+        "prometheus-mcp-server"
+      ],
+      "env": {
+        "PROMETHEUS_URL": "<your-prometheus-url>",
+        "PROMETHEUS_USERNAME": "<your-username>",
+        "PROMETHEUS_PASSWORD": "<your-password>"
+      }
+    }
+  }
+}
+```
+
+### Option C: Using uvx with Git repository
+
+```json
+{
+  "mcpServers": {
+    "prometheus": {
+      "command": "uvx",
+      "args": [
+        "run",
+        "--from",
+        "git+https://github.com/raihan0824/prometheus-mcp-server.git",
+        "prometheus-mcp-server"
+      ],
+      "env": {
+        "PROMETHEUS_URL": "<your-prometheus-url>",
+        "PROMETHEUS_USERNAME": "<your-username>",
+        "PROMETHEUS_PASSWORD": "<your-password>"
+      }
+    }
+  }
+}
+```
+
+### Option D: Using Docker (Legacy)
+
 ```json
 {
   "mcpServers": {
@@ -76,7 +221,7 @@ ORG_ID=your_organization_id
       ],
       "env": {
         "PROMETHEUS_URL": "<url>",
-        "PROMETHEUS_MCP_SERVER_TRANSPORT ": "http",
+        "PROMETHEUS_MCP_SERVER_TRANSPORT": "http",
         "PROMETHEUS_MCP_BIND_HOST": "localhost",
         "PROMETHEUS_MCP_BIND_PORT": "8080"
       }

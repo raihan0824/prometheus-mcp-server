@@ -1,9 +1,28 @@
 [project]
-name = "prometheus_mcp_server"
+name = "raihan0824-prometheus-mcp-server"
 version = "1.2.4"
 description = "MCP server for Prometheus integration"
 readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
+authors = [
+    {name = "raihan0824", email = "mraihanafiandi@gmail.com"}
+]
+maintainers = [
+    {name = "raihan0824", email = "mraihanafiandi@gmail.com"}
+]
+keywords = ["prometheus", "mcp", "monitoring", "metrics", "claude", "ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Monitoring",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
 dependencies = [
     "mcp[cli]",
     "prometheus-api-client",
@@ -13,6 +32,12 @@ dependencies = [
     "structlog>=23.0.0",
     "fastmcp>=2.11.3",
 ]
+
+[project.urls]
+Homepage = "https://github.com/raihan0824/prometheus-mcp-server"
+Repository = "https://github.com/raihan0824/prometheus-mcp-server"
+Issues = "https://github.com/raihan0824/prometheus-mcp-server/issues"
+Documentation = "https://github.com/raihan0824/prometheus-mcp-server/blob/main/README.md"
 
 [project.optional-dependencies]
 dev = [
