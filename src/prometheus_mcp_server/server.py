@@ -2,71 +2,359 @@
 
 import os
 import json
-from typing import Any, Dict, List, Optional, Union
+import asyncio
+from typing import Any, Dict, Optional
 from dataclasses import dataclass
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 
 import dotenv
 import requests
-from fastmcp import FastMCP
+import mcp.server.stdio
+import mcp.types as types
+from mcp.server.lowlevel import NotificationOptions, Server
+from mcp.server.models import InitializationOptions
 from prometheus_mcp_server.logging_config import get_logger
 
 dotenv.load_dotenv()
-mcp = FastMCP("Prometheus MCP")
+server = Server("Prometheus MCP")
 
 # Get logger instance
 logger = get_logger()
 
-# Health check tool for Docker containers and monitoring
-@mcp.tool(description="Health check endpoint for container monitoring and status verification")
-async def health_check() -> Dict[str, Any]:
-    """Return health status of the MCP server and Prometheus connection.
-    
-    Returns:
-        Health status including service information, configuration, and connectivity
-    """
-    try:
-        health_status = {
-            "status": "healthy",
-            "service": "prometheus-mcp-server", 
-            "version": "1.2.3",
-            "timestamp": datetime.utcnow().isoformat(),
-            "transport": config.mcp_server_config.mcp_server_transport if config.mcp_server_config else "stdio",
-            "configuration": {
-                "prometheus_url_configured": bool(config.url),
-                "authentication_configured": bool(config.username or config.token),
-                "org_id_configured": bool(config.org_id)
+# MCP Tool definitions using official SDK approach
+
+@server.list_tools()
+async def list_tools() -> list[types.Tool]:
+    """List available Prometheus MCP tools."""
+    return [
+        types.Tool(
+            name="health_check",
+            description="Health check endpoint for container monitoring and status verification",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
             }
-        }
-        
-        # Test Prometheus connectivity if configured
-        if config.url:
-            try:
-                # Quick connectivity test
-                make_prometheus_request("query", params={"query": "up", "time": str(int(time.time()))})
-                health_status["prometheus_connectivity"] = "healthy"
-                health_status["prometheus_url"] = config.url
-            except Exception as e:
-                health_status["prometheus_connectivity"] = "unhealthy"
-                health_status["prometheus_error"] = str(e)
-                health_status["status"] = "degraded"
-        else:
-            health_status["status"] = "unhealthy"
-            health_status["error"] = "PROMETHEUS_URL not configured"
-        
-        logger.info("Health check completed", status=health_status["status"])
-        return health_status
-        
-    except Exception as e:
-        logger.error("Health check failed", error=str(e))
-        return {
-            "status": "unhealthy",
-            "service": "prometheus-mcp-server",
-            "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        ),
+        types.Tool(
+            name="execute_query",
+            description="Execute a PromQL instant query against Prometheus",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "PromQL query string"
+                    },
+                    "time": {
+                        "type": "string",
+                        "description": "Optional RFC3339 or Unix timestamp (default: current time)"
+                    }
+                },
+                "required": ["query"]
+            }
+        ),
+        types.Tool(
+            name="execute_range_query",
+            description="Execute a PromQL range query with start time, end time, and step interval",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "PromQL query string"
+                    },
+                    "start": {
+                        "type": "string",
+                        "description": "Start time as RFC3339 or Unix timestamp"
+                    },
+                    "end": {
+                        "type": "string",
+                        "description": "End time as RFC3339 or Unix timestamp"
+                    },
+                    "step": {
+                        "type": "string",
+                        "description": "Query resolution step width (e.g., '15s', '1m', '1h')"
+                    }
+                },
+                "required": ["query", "start", "end", "step"]
+            }
+        ),
+        types.Tool(
+            name="list_metrics",
+            description="List all available metrics in Prometheus",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        types.Tool(
+            name="get_metric_metadata",
+            description="Get metadata for a specific metric",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "metric": {
+                        "type": "string",
+                        "description": "The name of the metric to retrieve metadata for"
+                    }
+                },
+                "required": ["metric"]
+            }
+        ),
+        types.Tool(
+            name="get_targets",
+            description="Get information about all scrape targets",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        )
+    ]
+
+@server.call_tool()
+async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextContent]:
+    """Handle tool calls and return structured responses."""
+    
+    if name == "health_check":
+        try:
+            health_data = {
+                "status": "healthy",
+                "service": "prometheus-mcp-server", 
+                "version": "1.2.11",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "transport": config.mcp_server_config.mcp_server_transport if config.mcp_server_config else "stdio",
+                "configuration": {
+                    "prometheus_url_configured": bool(config.url),
+                    "authentication_configured": bool(config.username or config.token),
+                    "org_id_configured": bool(config.org_id)
+                },
+                "checks": {
+                    "server": "healthy",
+                    "prometheus": "unknown"
+                }
+            }
+            
+            # Test Prometheus connectivity if configured
+            if config.url:
+                try:
+                    # Quick connectivity test
+                    make_prometheus_request("query", params={"query": "up", "time": str(int(time.time()))})
+                    health_data["prometheus_connectivity"] = "healthy"
+                    health_data["prometheus_url"] = config.url
+                    health_data["checks"]["prometheus"] = "healthy"
+                except Exception as e:
+                    health_data["prometheus_connectivity"] = "unhealthy"
+                    health_data["prometheus_error"] = str(e)
+                    health_data["status"] = "degraded"
+                    health_data["checks"]["prometheus"] = "unhealthy"
+            else:
+                health_data["status"] = "unhealthy"
+                health_data["error"] = "PROMETHEUS_URL not configured"
+                health_data["checks"]["prometheus"] = "not_configured"
+            
+            logger.info("Health check completed", status=health_data["status"])
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"Service: {health_data['service']}\nStatus: {health_data['status']}\nVersion: {health_data['version']}\nTimestamp: {health_data['timestamp']}"
+                ),
+                types.TextContent(
+                    type="text",
+                    text=f"Prometheus URL configured: {health_data['configuration']['prometheus_url_configured']}\nAuthentication configured: {health_data['configuration']['authentication_configured']}\nOrg ID configured: {health_data['configuration']['org_id_configured']}"
+                )
+            ]
+            
+        except Exception as e:
+            logger.error("Health check failed", error=str(e))
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"Health check failed: {str(e)}"
+                )
+            ]
+    
+    elif name == "execute_query":
+        try:
+            query = arguments["query"]
+            time_param = arguments.get("time")
+            
+            params = {"query": query}
+            if time_param:
+                params["time"] = time_param
+            
+            logger.info("Executing instant query", query=query, time=time_param)
+            data = make_prometheus_request("query", params=params)
+            
+            result_count = len(data["result"]) if isinstance(data["result"], list) else 1
+            
+            logger.info("Instant query completed", 
+                        query=query, 
+                        result_type=data["resultType"], 
+                        result_count=result_count)
+            
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"Query: {query}\nResult Type: {data['resultType']}\nResults Count: {result_count}\nTimestamp: {datetime.now(timezone.utc).isoformat()}"
+                ),
+                types.TextContent(
+                    type="text", 
+                    text=f"Results: {json.dumps(data['result'], indent=2)}"
+                )
+            ]
+            
+        except Exception as e:
+            logger.error("Query execution failed", error=str(e))
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"Query execution failed: {str(e)}"
+                )
+            ]
+    
+    elif name == "execute_range_query":
+        try:
+            query = arguments["query"]
+            start = arguments["start"]
+            end = arguments["end"]
+            step = arguments["step"]
+            
+            params = {
+                "query": query,
+                "start": start,
+                "end": end,
+                "step": step
+            }
+            
+            logger.info("Executing range query", query=query, start=start, end=end, step=step)
+            data = make_prometheus_request("query_range", params=params)
+            
+            result_count = len(data["result"]) if isinstance(data["result"], list) else 1
+            
+            logger.info("Range query completed", 
+                        query=query, 
+                        result_type=data["resultType"], 
+                        result_count=result_count)
+            
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"Query: {query}\nStart: {start}\nEnd: {end}\nStep: {step}\nResult Type: {data['resultType']}\nResults Count: {result_count}\nTimestamp: {datetime.now(timezone.utc).isoformat()}"
+                ),
+                types.TextContent(
+                    type="text",
+                    text=f"Results: {json.dumps(data['result'], indent=2)}"
+                )
+            ]
+            
+        except Exception as e:
+            logger.error("Range query execution failed", error=str(e))
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"Range query execution failed: {str(e)}"
+                )
+            ]
+    
+    elif name == "list_metrics":
+        try:
+            logger.info("Listing available metrics")
+            data = make_prometheus_request("label/__name__/values")
+            logger.info("Metrics list retrieved", metric_count=len(data))
+            
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"Total metrics available: {len(data)}\nTimestamp: {datetime.now(timezone.utc).isoformat()}"
+                ),
+                types.TextContent(
+                    type="text",
+                    text="All available metrics:\n" + "\n".join([f"- {metric}" for metric in data])
+                )
+            ]
+            
+        except Exception as e:
+            logger.error("List metrics failed", error=str(e))
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"Failed to list metrics: {str(e)}"
+                )
+            ]
+    
+    elif name == "get_metric_metadata":
+        try:
+            metric = arguments["metric"]
+            
+            logger.info("Retrieving metric metadata", metric=metric)
+            params = {"metric": metric}
+            data = make_prometheus_request("metadata", params=params)
+            logger.info("Metric metadata retrieved", metric=metric, metadata_count=len(data["metadata"]))
+            
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"Metric: {metric}\nMetadata entries: {len(data['metadata'])}\nTimestamp: {datetime.now(timezone.utc).isoformat()}"
+                ),
+                types.TextContent(
+                    type="text",
+                    text=f"Metadata: {json.dumps(data['metadata'], indent=2)}"
+                )
+            ]
+            
+        except Exception as e:
+            logger.error("Get metric metadata failed", error=str(e))
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"Failed to get metric metadata: {str(e)}"
+                )
+            ]
+    
+    elif name == "get_targets":
+        try:
+            logger.info("Retrieving scrape targets information")
+            data = make_prometheus_request("targets")
+            
+            active_count = len(data["activeTargets"])
+            dropped_count = len(data["droppedTargets"])
+            total_count = active_count + dropped_count
+            
+            logger.info("Scrape targets retrieved", 
+                        active_targets=active_count, 
+                        dropped_targets=dropped_count)
+            
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"Active targets: {active_count}\nDropped targets: {dropped_count}\nTotal targets: {total_count}\nTimestamp: {datetime.now(timezone.utc).isoformat()}"
+                ),
+                types.TextContent(
+                    type="text",
+                    text=f"Active targets: {json.dumps(data['activeTargets'], indent=2)}"
+                ),
+                types.TextContent(
+                    type="text",
+                    text=f"Dropped targets: {json.dumps(data['droppedTargets'], indent=2)}"
+                )
+            ]
+            
+        except Exception as e:
+            logger.error("Get targets failed", error=str(e))
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"Failed to get targets: {str(e)}"
+                )
+            ]
+    
+    else:
+        raise ValueError(f"Unknown tool: {name}")
 
 
 class TransportType(str, Enum):
@@ -138,7 +426,7 @@ def make_prometheus_request(endpoint, params=None):
 
     url = f"{config.url.rstrip('/')}/api/v1/{endpoint}"
     auth = get_prometheus_auth()
-    headers = {}
+    headers = {"User-Agent": "prometheus-mcp-server/1.2.11"}
 
     if isinstance(auth, dict):  # Token auth is passed via headers
         headers.update(auth)
@@ -151,8 +439,14 @@ def make_prometheus_request(endpoint, params=None):
     try:
         logger.debug("Making Prometheus API request", endpoint=endpoint, url=url, params=params)
         
-        # Make the request with appropriate headers and auth
-        response = requests.get(url, params=params, auth=auth, headers=headers)
+        # Make the request with appropriate headers, auth, and timeout
+        response = requests.get(
+            url, 
+            params=params, 
+            auth=auth, 
+            headers=headers,
+            timeout=30  # 30 second timeout
+        )
         
         response.raise_for_status()
         result = response.json()
@@ -170,130 +464,53 @@ def make_prometheus_request(endpoint, params=None):
         logger.debug("Prometheus API request successful", endpoint=endpoint, result_type=result_type)
         return result["data"]
     
+    except requests.exceptions.Timeout as e:
+        logger.error("Request timed out", endpoint=endpoint, url=url, timeout="30s")
+        raise ValueError(f"Prometheus server at {config.url} is not responding (timeout after 30s)")
+    except requests.exceptions.ConnectionError as e:
+        logger.error("Connection failed", endpoint=endpoint, url=url, error=str(e))
+        raise ValueError(f"Cannot connect to Prometheus server at {config.url}")
+    except requests.exceptions.HTTPError as e:
+        status_code = e.response.status_code if e.response else "unknown"
+        logger.error("HTTP error", endpoint=endpoint, url=url, status_code=status_code, error=str(e))
+        if status_code == 401:
+            raise ValueError("Authentication failed. Please check your Prometheus credentials.")
+        elif status_code == 403:
+            raise ValueError("Access forbidden. Please check your Prometheus permissions.")
+        else:
+            raise ValueError(f"HTTP {status_code} error from Prometheus server")
     except requests.exceptions.RequestException as e:
         logger.error("HTTP request to Prometheus failed", endpoint=endpoint, url=url, error=str(e), error_type=type(e).__name__)
-        raise
+        raise ValueError(f"Request failed: {str(e)}")
     except json.JSONDecodeError as e:
         logger.error("Failed to parse Prometheus response as JSON", endpoint=endpoint, url=url, error=str(e))
         raise ValueError(f"Invalid JSON response from Prometheus: {str(e)}")
     except Exception as e:
         logger.error("Unexpected error during Prometheus request", endpoint=endpoint, url=url, error=str(e), error_type=type(e).__name__)
-        raise
+        raise ValueError(f"Unexpected error: {str(e)}")
 
-@mcp.tool(description="Execute a PromQL instant query against Prometheus")
-async def execute_query(query: str, time: Optional[str] = None) -> Dict[str, Any]:
-    """Execute an instant query against Prometheus.
-    
-    Args:
-        query: PromQL query string
-        time: Optional RFC3339 or Unix timestamp (default: current time)
-        
-    Returns:
-        Query result with type (vector, matrix, scalar, string) and values
-    """
-    params = {"query": query}
-    if time:
-        params["time"] = time
-    
-    logger.info("Executing instant query", query=query, time=time)
-    data = make_prometheus_request("query", params=params)
-    
-    result = {
-        "resultType": data["resultType"],
-        "result": data["result"]
-    }
-    
-    logger.info("Instant query completed", 
-                query=query, 
-                result_type=data["resultType"], 
-                result_count=len(data["result"]) if isinstance(data["result"], list) else 1)
-    
-    return result
 
-@mcp.tool(description="Execute a PromQL range query with start time, end time, and step interval")
-async def execute_range_query(query: str, start: str, end: str, step: str) -> Dict[str, Any]:
-    """Execute a range query against Prometheus.
+async def main():
+    """Run the MCP server with stdio transport."""
     
-    Args:
-        query: PromQL query string
-        start: Start time as RFC3339 or Unix timestamp
-        end: End time as RFC3339 or Unix timestamp
-        step: Query resolution step width (e.g., '15s', '1m', '1h')
-        
-    Returns:
-        Range query result with type (usually matrix) and values over time
-    """
-    params = {
-        "query": query,
-        "start": start,
-        "end": end,
-        "step": step
-    }
+    # Server capabilities
+    init_options = InitializationOptions(
+        server_name="prometheus-mcp-server",
+        server_version="1.2.11",
+        capabilities=server.get_capabilities(
+            notification_options=NotificationOptions(),
+            experimental_capabilities={}
+        )
+    )
     
-    logger.info("Executing range query", query=query, start=start, end=end, step=step)
-    data = make_prometheus_request("query_range", params=params)
-    
-    result = {
-        "resultType": data["resultType"],
-        "result": data["result"]
-    }
-    
-    logger.info("Range query completed", 
-                query=query, 
-                result_type=data["resultType"], 
-                result_count=len(data["result"]) if isinstance(data["result"], list) else 1)
-    
-    return result
-
-@mcp.tool(description="List all available metrics in Prometheus")
-async def list_metrics() -> List[str]:
-    """Retrieve a list of all metric names available in Prometheus.
-    
-    Returns:
-        List of metric names as strings
-    """
-    logger.info("Listing available metrics")
-    data = make_prometheus_request("label/__name__/values")
-    logger.info("Metrics list retrieved", metric_count=len(data))
-    return data
-
-@mcp.tool(description="Get metadata for a specific metric")
-async def get_metric_metadata(metric: str) -> List[Dict[str, Any]]:
-    """Get metadata about a specific metric.
-    
-    Args:
-        metric: The name of the metric to retrieve metadata for
-        
-    Returns:
-        List of metadata entries for the metric
-    """
-    logger.info("Retrieving metric metadata", metric=metric)
-    params = {"metric": metric}
-    data = make_prometheus_request("metadata", params=params)
-    logger.info("Metric metadata retrieved", metric=metric, metadata_count=len(data["metadata"]))
-    return data["metadata"]
-
-@mcp.tool(description="Get information about all scrape targets")
-async def get_targets() -> Dict[str, List[Dict[str, Any]]]:
-    """Get information about all Prometheus scrape targets.
-    
-    Returns:
-        Dictionary with active and dropped targets information
-    """
-    logger.info("Retrieving scrape targets information")
-    data = make_prometheus_request("targets")
-    
-    result = {
-        "activeTargets": data["activeTargets"],
-        "droppedTargets": data["droppedTargets"]
-    }
-    
-    logger.info("Scrape targets retrieved", 
-                active_targets=len(data["activeTargets"]), 
-                dropped_targets=len(data["droppedTargets"]))
-    
-    return result
+    # Run server with stdio transport
+    async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
+        await server.run(
+            read_stream, 
+            write_stream, 
+            init_options
+        )
 
 if __name__ == "__main__":
     logger.info("Starting Prometheus MCP Server", mode="direct")
-    mcp.run()
+    asyncio.run(main())
